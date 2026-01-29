@@ -246,7 +246,7 @@ def get_groq_article_seo(title, summary, link, internal_links_block, author_name
     [Markdown Content]
 
     # STRUCTURE:
-    1. The Scoop: Intro Hook/Executive Summary.
+    1. Executive Summary.
     2. [Unique H2: Context of the Story].
     {{{{< ad >}}}}
     3. [Unique H2: Key Stats/Data Table] (Markdown Table).
