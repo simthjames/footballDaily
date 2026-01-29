@@ -1,4 +1,4 @@
-baseURL: "https://football-daily.vercel.app/"
+baseURL: "https://football-daily-two.vercel.app/"
 languageCode: "en-us"
 title: "football Daily"
 canonifyURLs: true
