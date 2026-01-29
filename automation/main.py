@@ -52,8 +52,8 @@ VALID_CATEGORIES = [
 
 # --- 🟢 SUMBER RSS (US & UK) ---
 RSS_SOURCES = {
-    "US Source": "https://news.google.com/rss/headlines/section/topic/footballS?hl=en-US&gl=US&ceid=US:en",
-    "UK Source": "https://news.google.com/rss/headlines/section/topic/footballS?hl=en-GB&gl=GB&ceid=GB:en"
+    "US Source": "https://news.google.com/rss/search?q=Sports+News&hl=en-US&gl=US&ceid=US:en",
+    "UK Source": "https://news.google.com/rss/search?q=Sports+News&hl=en-GB&gl=GB&ceid=GB:en"
 }
 
 # --- AUTHORITY SOURCES ---
