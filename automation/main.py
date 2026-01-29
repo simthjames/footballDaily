@@ -24,8 +24,8 @@ GROQ_KEYS_RAW = os.environ.get("GROQ_API_KEY", "")
 GROQ_API_KEYS = [k.strip() for k in GROQ_KEYS_RAW.split(",") if k.strip()]
 
 # 🟢 CONFIGURASI DOMAIN & INDEXNOW
-WEBSITE_URL = "https://football-daily.vercel.app" 
-INDEXNOW_KEY = "e74819b68a0f40e98f6ec3dc24f610f0" 
+WEBSITE_URL = "https://football-daily-two.vercel.app" 
+INDEXNOW_KEY = "b0c1cebbd6004e1a9e25605cc51b2937" 
 GOOGLE_JSON_KEY = os.environ.get("GOOGLE_INDEXING_KEY", "") 
 
 if not GROQ_API_KEYS:
