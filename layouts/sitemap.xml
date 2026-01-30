@@ -1,11 +1,10 @@
 {{ printf "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>" | safeHTML }}
-{{ printf "<?xml-stylesheet type=\"text/xsl\" href=\"/sitemap.xsl\"?>" | safeHTML }}
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-  xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   {{ range .Data.Pages }}
     {{ if not .Params.private }}
-      {{/* STRATEGI SEO 2026: Jangan masukkan halaman TAGS ke sitemap agar Crawl Budget fokus ke Artikel */}}
+      
+      {{/* STRATEGI SEO: Hanya Index Home, Categories, dan Artikel. Tags dibuang. */}}
       {{ if ne .Section "tags" }}
         <url>
           <loc>{{ .Permalink }}</loc>
@@ -20,6 +19,7 @@
           {{ end }}
         </url>
       {{ end }}
+
     {{ end }}
   {{ end }}
   
