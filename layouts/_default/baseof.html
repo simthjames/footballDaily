@@ -55,7 +55,6 @@
     <meta property="og:image" content="{{ "images/default-football.jpg" | absURL }}">
     {{ end }}
 
-    <!-- 6. TWITTER CARDS -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ .Title }}">
     <meta name="twitter:description" content="{{ if .IsHome }}{{ .Site.Params.description }}{{ else }}{{ .Params.description | default .Summary | plainify | htmlUnescape }}{{ end }}">
@@ -66,59 +65,52 @@
     {{ end }}
 
     <!-- =======================================================
-         7. SCHEMA.ORG (JSON-LD) - VERSI FIX VALIDATED
+         7. SCHEMA.ORG (JSON-LD) - METODE DICT (ANTI ERROR)
          ======================================================= -->
     
     <!-- A. Homepage Schema -->
     {{ if .IsHome }}
+    {{ $homeSchema := dict 
+        "@context" "https://schema.org"
+        "@type" "WebSite"
+        "name" .Site.Title
+        "alternateName" (slice "SoccerDaily" "Football Daily News")
+        "url" .Site.BaseURL
+        "description" .Site.Params.description
+        "publisher" (dict 
+            "@type" "Organization" 
+            "name" .Site.Title 
+            "logo" (dict "@type" "ImageObject" "url" ("favicon.svg" | absURL))
+        )
+    }}
     <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "Soccer Daily",
-      "alternateName": ["SoccerDaily", "Soccer Daily News"],
-      "url": "{{ .Site.BaseURL }}",
-      "description": {{ .Site.Params.description | jsonify }}, 
-      "publisher": {
-        "@type": "Organization",
-        "name": "Soccer Daily",
-        "logo": {
-          "@type": "ImageObject",
-          "url": "{{ "favicon.svg" | absURL }}"
-        }
-      }
-    }
+        {{ $homeSchema | jsonify | safeJS }}
     </script>
     {{ end }}
 
     <!-- B. Article Schema -->
     {{ if .IsPage }}
+    {{ $img := "images/default-football.jpg" | absURL }}
+    {{ if .Params.featured_image }}{{ $img = .Params.featured_image | absURL }}{{ end }}
+    
+    {{ $articleSchema := dict 
+        "@context" "https://schema.org"
+        "@type" "NewsArticle"
+        "mainEntityOfPage" (dict "@type" "WebPage" "@id" .Permalink)
+        "headline" .Title
+        "image" (slice $img)
+        "datePublished" (.Date.Format "2006-01-02T15:04:05Z07:00")
+        "dateModified" (.Lastmod.Format "2006-01-02T15:04:05Z07:00")
+        "author" (dict "@type" "Person" "name" (.Params.author | default "Soccer Daily Team"))
+        "publisher" (dict 
+            "@type" "Organization" 
+            "name" .Site.Title 
+            "logo" (dict "@type" "ImageObject" "url" ("favicon.svg" | absURL))
+        )
+        "description" (.Params.description | default .Summary | plainify | htmlUnescape)
+    }}
     <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "NewsArticle",
-      "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "{{ .Permalink }}"
-      },
-      "headline": {{ .Title | jsonify }},
-      "image": [ "{{ .Params.featured_image | absURL }}" ],
-      "datePublished": "{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}",
-      "dateModified": "{{ .Lastmod.Format "2006-01-02T15:04:05Z07:00" }}",
-      "author": {
-        "@type": "Person",
-        "name": {{ .Params.author | default "Soccer Daily Team" | jsonify }}
-      },
-      "publisher": {
-        "@type": "Organization",
-        "name": "{{ .Site.Title }}",
-        "logo": {
-          "@type": "ImageObject",
-          "url": "{{ "favicon.svg" | absURL }}" 
-        }
-      },
-      "description": {{ .Params.description | default .Summary | plainify | htmlUnescape | jsonify }}
-    }
+        {{ $articleSchema | jsonify | safeJS }}
     </script>
     {{ end }}
 
@@ -126,16 +118,11 @@
     
 </head>
 <body class="bg-white text-news-dark font-sans antialiased flex flex-col min-h-screen">
-    
     {{ partial "header.html" . }}
-    
-    <!-- SLOT IKLAN BILLBOARD -->
     {{ partial "ads/billboard.html" . }}
-    
     <main id="main-content" role="main" class="flex-grow">
         {{ block "main" . }}{{ end }}
     </main>
-    
     {{ partial "footer.html" . }}
 </body>
 </html>
