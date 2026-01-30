@@ -5,19 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     
-    <!-- 1. PRECONNECT & PRELOAD (CRITICAL PERFORMANCE) -->
+    <!-- 1. PRECONNECT & PRELOAD -->
     <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="dns-prefetch" href="https://s10.histats.com">
-    <!-- Preload Tailwind Script agar tidak render blocking -->
     <link rel="preload" href="https://cdn.tailwindcss.com?plugins=typography,line-clamp" as="script">
 
-    <!-- 2. SEO TITLE (Rapi tanpa Spasi Berlebih) -->
+    <!-- 2. SEO TITLE -->
     <title>{{ if .IsHome }}{{ .Site.Title }} - Breaking Football News, Transfers & Tactical Analysis{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}</title>
 
-    <!-- 3. META DESCRIPTION (SAFE MODE) -->
-    <!-- 'plainify' membuang tag HTML, 'htmlUnescape' membersihkan karakter aneh -->
+    <!-- 3. META DESCRIPTION -->
     <meta name="description" content="{{ if .IsHome }}{{ .Site.Params.description }}{{ else }}{{ .Params.description | default .Summary | plainify | htmlUnescape }}{{ end }}">
 
     <link rel="canonical" href="{{ .Permalink }}">
@@ -41,7 +39,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@300;400;500;700;900&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
     <noscript><link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@300;400;500;700;900&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet"></noscript>
 
-    <!-- 5. OPEN GRAPH (FB/WA) -->
+    <!-- 5. OPEN GRAPH -->
     <meta property="og:locale" content="{{ .Site.LanguageCode | default "en_GB" }}">
     <meta property="og:site_name" content="{{ .Site.Title }}">
     <meta property="og:type" content="{{ if .IsPage }}article{{ else }}website{{ end }}">
@@ -68,7 +66,7 @@
     {{ end }}
 
     <!-- =======================================================
-         7. SCHEMA.ORG (JSON-LD)
+         7. SCHEMA.ORG (JSON-LD) - VERSI FIX VALIDATED
          ======================================================= -->
     
     <!-- A. Homepage Schema -->
@@ -77,13 +75,13 @@
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
-      "name": "football Daily",
-      "alternateName": ["footballDaily", "football Daily News"],
+      "name": "Soccer Daily",
+      "alternateName": ["SoccerDaily", "Soccer Daily News"],
       "url": "{{ .Site.BaseURL }}",
-      "description": "{{ .Site.Params.description }}",
+      "description": {{ .Site.Params.description | jsonify }}, 
       "publisher": {
         "@type": "Organization",
-        "name": "football Daily",
+        "name": "Soccer Daily",
         "logo": {
           "@type": "ImageObject",
           "url": "{{ "favicon.svg" | absURL }}"
@@ -103,13 +101,13 @@
         "@type": "WebPage",
         "@id": "{{ .Permalink }}"
       },
-      "headline": "{{ .Title }}",
+      "headline": {{ .Title | jsonify }},
       "image": [ "{{ .Params.featured_image | absURL }}" ],
       "datePublished": "{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}",
       "dateModified": "{{ .Lastmod.Format "2006-01-02T15:04:05Z07:00" }}",
       "author": {
         "@type": "Person",
-        "name": "{{ .Params.author | default "football Daily Team" }}"
+        "name": {{ .Params.author | default "Soccer Daily Team" | jsonify }}
       },
       "publisher": {
         "@type": "Organization",
@@ -119,7 +117,7 @@
           "url": "{{ "favicon.svg" | absURL }}" 
         }
       },
-      "description": "{{ .Params.description | default .Summary | plainify | htmlUnescape }}"
+      "description": {{ .Params.description | default .Summary | plainify | htmlUnescape | jsonify }}
     }
     </script>
     {{ end }}
@@ -128,11 +126,16 @@
     
 </head>
 <body class="bg-white text-news-dark font-sans antialiased flex flex-col min-h-screen">
+    
     {{ partial "header.html" . }}
+    
+    <!-- SLOT IKLAN BILLBOARD -->
     {{ partial "ads/billboard.html" . }}
+    
     <main id="main-content" role="main" class="flex-grow">
         {{ block "main" . }}{{ end }}
     </main>
+    
     {{ partial "footer.html" . }}
 </body>
 </html>
