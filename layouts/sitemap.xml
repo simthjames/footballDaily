@@ -1,11 +1,22 @@
 {{ printf "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>" | safeHTML }}
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{{ printf "<?xml-stylesheet type=\"text/xsl\" href=\"/sitemap.xsl\"?>" | safeHTML }}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml">
   
+  {{/* 1. Inisialisasi Counter */}}
+  {{ $.Scratch.Set "url_counter" 0 }}
+
   {{ range .Data.Pages }}
+    {{/* Filter Halaman Private */}}
     {{ if not .Params.private }}
       
-      {{/* STRATEGI SEO: Hanya Index Home, Categories, dan Artikel. Tags dibuang. */}}
-      {{ if ne .Section "tags" }}
+      {{/* STRATEGI SEO: Filter Halaman Tags/Categories agar tidak masuk sitemap */}}
+      {{ if and (ne .Section "tags") (ne .Section "categories") }}
+        
+        {{/* 2. Increment Counter (Hanya tambah angka jika lolos filter) */}}
+        {{ $.Scratch.Add "url_counter" 1 }}
+        
+        <!-- [URL #{{ $.Scratch.Get "url_counter" }}] : {{ .Title }} -->
         <url>
           <loc>{{ .Permalink }}</loc>
           {{ if not .Lastmod.IsZero }}
@@ -18,9 +29,13 @@
           <priority>{{ .Sitemap.Priority }}</priority>
           {{ end }}
         </url>
-      {{ end }}
 
+      {{ end }}
     {{ end }}
   {{ end }}
+
+  <!-- ============================================== -->
+  <!-- TOTAL URLS GENERATED: {{ $.Scratch.Get "url_counter" }} -->
+  <!-- ============================================== -->
   
 </urlset>
