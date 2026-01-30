@@ -5,45 +5,77 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     
-    <!-- 1. PRECONNECT & PRELOAD -->
+    <!-- =======================================================
+         1. PERFORMANCE & PRECONNECT (CRITICAL FOR LCP SCORE)
+         ======================================================= -->
+    <!-- Preconnect ke CDN Aset -->
     <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="dns-prefetch" href="https://s10.histats.com">
-    <link rel="preload" href="https://cdn.tailwindcss.com?plugins=typography,line-clamp" as="script">
+    
+    <!-- Preconnect ke CDN Gambar (PENTING untuk LCP) -->
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
+    <link rel="dns-prefetch" href="https://images.unsplash.com">
+    <link rel="preconnect" href="https://image.pollinations.ai" crossorigin>
+    <link rel="dns-prefetch" href="https://image.pollinations.ai">
 
-    <!-- 2. SEO TITLE -->
-    <title>{{ if .IsHome }}{{ .Site.Title }} - Breaking Football News, Transfers & Tactical Analysis{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}</title>
-
-    <!-- 3. META DESCRIPTION -->
-    <meta name="description" content="{{ if .IsHome }}{{ .Site.Params.description }}{{ else }}{{ .Params.description | default .Summary | plainify | htmlUnescape }}{{ end }}">
-
-    <link rel="canonical" href="{{ .Permalink }}">
-    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
-    <meta name="theme-color" content="#111827">
-
-    <!-- 4. TAILWIND & FONTS -->
-    <script src="https://cdn.tailwindcss.com?plugins=typography,line-clamp"></script>
+    <!-- =======================================================
+         2. TAILWIND CONFIG (MUST BE BEFORE SCRIPT LOAD)
+         ======================================================= -->
+    <!-- Definisi Config DULUAN agar tidak render blocking/flash -->
     <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Roboto', 'sans-serif'],
-                        display: ['Libre Franklin', 'sans-serif'],
+        tailwind = {
+            config: {
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            sans: ['Roboto', 'sans-serif'],
+                            display: ['Libre Franklin', 'sans-serif'],
+                        },
+                        colors: {
+                            'news-red': '#DC2626',
+                            'news-dark': '#111827',
+                        }
                     }
                 }
             }
         }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@300;400;500;700;900&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-    <noscript><link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@300;400;500;700;900&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet"></noscript>
+    <!-- Load Tailwind Script -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography,line-clamp"></script>
 
-    <!-- 5. OPEN GRAPH -->
-    <meta property="og:locale" content="{{ .Site.LanguageCode | default "en_GB" }}">
+    <!-- =======================================================
+         3. FONT LOADING (NON-BLOCKING STRATEGY)
+         ======================================================= -->
+    <!-- Preload Font sebagai style, lalu ubah jadi stylesheet saat load selesai -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@300;400;500;700;900&family=Roboto:wght@300;400;500;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <!-- Fallback untuk browser tanpa JS -->
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@300;400;500;700;900&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet"></noscript>
+    
+    <style>
+        /* CSS Kritis: Pastikan teks muncul walau font belum load (Swap) */
+        body { font-display: swap; }
+        /* Optimasi rendering gambar */
+        img { content-visibility: auto; }
+    </style>
+
+    <!-- =======================================================
+         4. SEO METADATA
+         ======================================================= -->
+    <title>{{ if .IsHome }}{{ .Site.Title }} - Pop Culture, Movies, Gaming & Entertainment News{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}</title>
+
+    <meta name="description" content="{{ if .IsHome }}{{ .Site.Params.description }}{{ else }}{{ .Params.description | default .Summary | plainify | htmlUnescape }}{{ end }}">
+    <link rel="canonical" href="{{ .Permalink }}">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <meta name="theme-color" content="#ffffff">
+
+    <!-- =======================================================
+         5. SOCIAL MEDIA (OPEN GRAPH & TWITTER)
+         ======================================================= -->
+    <meta property="og:locale" content="{{ .Site.LanguageCode | default "en_US" }}">
     <meta property="og:site_name" content="{{ .Site.Title }}">
     <meta property="og:type" content="{{ if .IsPage }}article{{ else }}website{{ end }}">
-    <meta property="og:title" content="{{ if .IsHome }}{{ .Site.Title }} - Football News & Analysis{{ else }}{{ .Title }}{{ end }}">
+    <meta property="og:title" content="{{ if .IsHome }}{{ .Site.Title }} - Entertainment & Pop Culture{{ else }}{{ .Title }}{{ end }}">
     <meta property="og:description" content="{{ if .IsHome }}{{ .Site.Params.description }}{{ else }}{{ .Params.description | default .Summary | plainify | htmlUnescape }}{{ end }}">
     <meta property="og:url" content="{{ .Permalink }}">
     
@@ -52,7 +84,7 @@
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="675">
     {{ else }}
-    <meta property="og:image" content="{{ "images/default-football.jpg" | absURL }}">
+    <meta property="og:image" content="{{ "images/default-glitz.jpg" | absURL }}">
     {{ end }}
 
     <meta name="twitter:card" content="summary_large_image">
@@ -61,56 +93,63 @@
     {{ if .Params.featured_image }}
     <meta name="twitter:image" content="{{ .Params.featured_image | absURL }}">
     {{ else }}
-    <meta name="twitter:image" content="{{ "images/default-football.jpg" | absURL }}">
+    <meta name="twitter:image" content="{{ "images/default-glitz.jpg" | absURL }}">
     {{ end }}
 
     <!-- =======================================================
-         7. SCHEMA.ORG (JSON-LD) - METODE DICT (ANTI ERROR)
+         6. SCHEMA.ORG (JSON-LD)
          ======================================================= -->
     
     <!-- A. Homepage Schema -->
     {{ if .IsHome }}
-    {{ $homeSchema := dict 
-        "@context" "https://schema.org"
-        "@type" "WebSite"
-        "name" .Site.Title
-        "alternateName" (slice "SoccerDaily" "Football Daily News")
-        "url" .Site.BaseURL
-        "description" .Site.Params.description
-        "publisher" (dict 
-            "@type" "Organization" 
-            "name" .Site.Title 
-            "logo" (dict "@type" "ImageObject" "url" ("favicon.svg" | absURL))
-        )
-    }}
     <script type="application/ld+json">
-        {{ $homeSchema | jsonify | safeJS }}
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "{{ .Site.Title }}",
+      "alternateName": ["{{ .Site.Title }} News", "Pop Culture Daily"],
+      "url": "{{ .Site.BaseURL }}",
+      "description": "{{ .Site.Params.description }}",
+      "publisher": {
+        "@type": "Organization",
+        "name": "{{ .Site.Title }}",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "{{ "favicon.svg" | absURL }}"
+        }
+      }
+    }
     </script>
     {{ end }}
 
     <!-- B. Article Schema -->
     {{ if .IsPage }}
-    {{ $img := "images/default-football.jpg" | absURL }}
-    {{ if .Params.featured_image }}{{ $img = .Params.featured_image | absURL }}{{ end }}
-    
-    {{ $articleSchema := dict 
-        "@context" "https://schema.org"
-        "@type" "NewsArticle"
-        "mainEntityOfPage" (dict "@type" "WebPage" "@id" .Permalink)
-        "headline" .Title
-        "image" (slice $img)
-        "datePublished" (.Date.Format "2006-01-02T15:04:05Z07:00")
-        "dateModified" (.Lastmod.Format "2006-01-02T15:04:05Z07:00")
-        "author" (dict "@type" "Person" "name" (.Params.author | default "Soccer Daily Team"))
-        "publisher" (dict 
-            "@type" "Organization" 
-            "name" .Site.Title 
-            "logo" (dict "@type" "ImageObject" "url" ("favicon.svg" | absURL))
-        )
-        "description" (.Params.description | default .Summary | plainify | htmlUnescape)
-    }}
     <script type="application/ld+json">
-        {{ $articleSchema | jsonify | safeJS }}
+    {
+      "@context": "https://schema.org",
+      "@type": "NewsArticle",
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "{{ .Permalink }}"
+      },
+      "headline": "{{ .Title }}",
+      "image": [ "{{ .Params.featured_image | absURL }}" ],
+      "datePublished": "{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}",
+      "dateModified": "{{ .Lastmod.Format "2006-01-02T15:04:05Z07:00" }}",
+      "author": {
+        "@type": "Person",
+        "name": "{{ .Params.author | default "Editorial Team" }}"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "{{ .Site.Title }}",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "{{ "favicon.svg" | absURL }}" 
+        }
+      },
+      "description": "{{ .Params.description | default .Summary | plainify | htmlUnescape }}"
+    }
     </script>
     {{ end }}
 
@@ -118,11 +157,16 @@
     
 </head>
 <body class="bg-white text-news-dark font-sans antialiased flex flex-col min-h-screen">
+    
     {{ partial "header.html" . }}
+    
     {{ partial "ads/billboard.html" . }}
+    
     <main id="main-content" role="main" class="flex-grow">
         {{ block "main" . }}{{ end }}
     </main>
+    
     {{ partial "footer.html" . }}
-</body>
+
+</body> 
 </html>
