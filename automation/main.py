@@ -13,26 +13,34 @@ from PIL import Image, ImageEnhance, ImageOps
 from groq import Groq, APIError, RateLimitError, BadRequestError
 
 # --- SUPPRESS WARNINGS ---
-warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=FutureWarning, module="google.api_core")
+
+# --- GOOGLE INDEXING LIBS ---
+from oauth2client.service_account import ServiceAccountCredentials
+from googleapiclient.discovery import build
 
 # --- CONFIGURATION ---
 GROQ_KEYS_RAW = os.environ.get("GROQ_API_KEY", "")
 GROQ_API_KEYS = [k.strip() for k in GROQ_KEYS_RAW.split(",") if k.strip()]
 
-WEBSITE_URL = "https://football-daily-two.vercel.app" 
+# 🟢 CONFIGURASI DOMAIN & INDEXNOW
+WEBSITE_URL = "https://sport-daily.vercel.app" 
 INDEXNOW_KEY = "b0c1cebbd6004e1a9e25605cc51b2937" 
 GOOGLE_JSON_KEY = os.environ.get("GOOGLE_INDEXING_KEY", "") 
 
 if not GROQ_API_KEYS:
     print("❌ FATAL ERROR: Groq API Key is missing!")
+    exit(1)
 
+# --- TIM PENULIS (NEWSROOM) ---
 AUTHOR_PROFILES = [
     "Dave Harsya (Senior Analyst)", "Sarah Jenkins (Chief Editor)",
     "Luca Romano (Transfer Specialist)", "Marcus Reynolds (Premier League Correspondent)",
-    "Elena Petrova (Tactical Expert)", "Ben Foster (Football Journalist)",
+    "Elena Petrova (Tactical Expert)", "Ben Foster (Sports Journalist)",
     "Mateo Rodriguez (European Football Analyst)"
 ]
 
+# --- 🟢 DAFTAR KATEGORI RESMI WEBSITE ANDA ---
 VALID_CATEGORIES = [
     "Transfer News", 
     "Premier League", 
@@ -42,22 +50,22 @@ VALID_CATEGORIES = [
     "Tactical Analysis"
 ]
 
+# --- 🟢 SUMBER RSS (US & UK) ---
 RSS_SOURCES = {
-    "US Source": "https://news.google.com/rss/search?q=Sports+News&hl=en-US&gl=US&ceid=US:en",
-    "UK Source": "https://news.google.com/rss/search?q=Sports+News&hl=en-GB&gl=GB&ceid=GB:en"
+    "US Source": "https://news.google.com/rss/headlines/section/topic/SPORTS?hl=en-US&gl=US&ceid=US:en",
+    "UK Source": "https://news.google.com/rss/headlines/section/topic/SPORTS?hl=en-GB&gl=GB&ceid=GB:en"
 }
 
-# DAFTAR GAMBAR CADANGAN (UNSPLASH)
+# --- AUTHORITY SOURCES ---
+AUTHORITY_SOURCES = [
+    "Transfermarkt", "Sky Sports", "The Athletic", "Opta Analyst",
+    "WhoScored", "BBC Sport", "The Guardian", "UEFA Official", "ESPN FC"
+]
+
+# --- FALLBACK IMAGES ---
 FALLBACK_IMAGES = [
-    "https://images.unsplash.com/photo-1522778119026-d647f0565c6a?auto=format&fit=crop&w=1200&q=80",
-    "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?auto=format&fit=crop&w=1200&q=80",
-    "https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=1200&q=80",
     "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1200&q=80",
-    "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=1200&q=80",
-    "https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1200&q=80",
-    "https://images.unsplash.com/photo-1624880357913-a8539238245b?auto=format&fit=crop&w=1200&q=80",
-    "https://images.unsplash.com/photo-1560272564-c83b66b1ad12?auto=format&fit=crop&w=1200&q=80",
-    "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?auto=format&fit=crop&w=1200&q=80"
+    "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?auto=format&fit=crop&w=1200&q=80"
 ]
 
 CONTENT_DIR = "content/articles"
@@ -67,8 +75,7 @@ MEMORY_FILE = f"{DATA_DIR}/link_memory.json"
 
 TARGET_PER_SOURCE = 3 
 
-# --- HELPER FUNCTIONS ---
-
+# --- MEMORY SYSTEM ---
 def load_link_memory():
     if not os.path.exists(MEMORY_FILE): return {}
     try:
@@ -78,7 +85,7 @@ def load_link_memory():
 def save_link_to_memory(title, slug):
     os.makedirs(DATA_DIR, exist_ok=True)
     memory = load_link_memory()
-    memory[title] = f"/{slug}/"
+    memory[title] = f"/{slug}"
     if len(memory) > 50:
         memory = dict(list(memory.items())[-50:])
     with open(MEMORY_FILE, 'w') as f: json.dump(memory, f, indent=2)
@@ -90,90 +97,83 @@ def get_formatted_internal_links():
     if len(items) > 3: items = random.sample(items, 3)
     formatted_links = []
     for title, url in items:
-        formatted_links.append(f"- [{title}]({url})")
+        formatted_links.append(f"* [{title}]({url})")
     return "\n".join(formatted_links)
 
-def clean_text_for_yaml(text):
-    if not text: return ""
-    text = str(text)
-    text = text.replace('"', "'") 
-    text = text.replace('\n', ' ') 
-    text = text.replace('\\', '')
-    return re.sub(r'\s+', ' ', text).strip()
+# --- RSS FETCHER ---
+def fetch_rss_feed(url):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://news.google.com/'
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=15)
+        if response.status_code != 200: return None
+        return feedparser.parse(response.content)
+    except: return None
 
-def repair_shortcodes(text):
+# --- CLEANING ---
+def clean_text(text):
     if not text: return ""
-    text = text.replace("{< ad >}", "{{< ad >}}")
-    text = text.replace("{ < ad > }", "{{< ad >}}")
-    text = text.replace("{{ ad }}", "{{< ad >}}")
-    text = text.replace("{{ad}}", "{{< ad >}}")
-    text = text.replace("{{< ad >}}{{< ad >}}", "{{< ad >}}")
-    return text
+    cleaned = text.replace("**", "").replace("__", "").replace("##", "")
+    cleaned = cleaned.replace('"', "'") 
+    cleaned = cleaned.strip()
+    return cleaned
 
-# --- IMAGE ENGINE (UPDATED: DOWNLOAD FALLBACK) ---
+# --- IMAGE ENGINE ---
 def download_and_optimize_image(query, filename):
     if not filename.endswith(".webp"):
         filename = filename.rsplit(".", 1)[0] + ".webp"
-    
-    # Path output lokal
-    output_path = f"{IMAGE_DIR}/{filename}"
-    
-    # Cek jika file sudah ada di folder
-    if os.path.exists(output_path):
-        return f"/images/{filename}"
 
-    # Prompt AI
-    base_prompt = f"{query} football match action, stadium atmosphere, 8k resolution, cinematic lighting"
+    base_prompt = f"{query} sports action photography, stadium atmosphere, 8k resolution, highly detailed, photorealistic, cinematic lighting, sharp focus"
     safe_prompt = base_prompt.replace(" ", "%20")[:250]
     
     print(f"      🎨 Generating HQ Image: {base_prompt[:40]}...")
 
-    # COBA GENERATE GAMBAR AI (2x Attempt saja biar cepat)
-    for attempt in range(2):
+    for attempt in range(3):
         seed = random.randint(1, 999999)
         image_url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=1280&height=720&nologo=true&model=flux-realism&seed={seed}&enhance=true"
         
         try:
-            response = requests.get(image_url, timeout=45)
-            if response.status_code == 200 and "image" in response.headers.get("content-type", ""):
+            response = requests.get(image_url, timeout=120)
+            if response.status_code == 200:
+                if "image" not in response.headers.get("content-type", ""):
+                    time.sleep(2); continue
+
                 img = Image.open(BytesIO(response.content)).convert("RGB")
                 img = img.resize((1200, 675), Image.Resampling.LANCZOS)
                 
-                # Enhance
-                img = ImageEnhance.Sharpness(img).enhance(1.2)
+                enhancer_sharp = ImageEnhance.Sharpness(img)
+                img = enhancer_sharp.enhance(1.3)
+                enhancer_color = ImageEnhance.Color(img)
+                img = enhancer_color.enhance(1.1)
+
+                output_path = f"{IMAGE_DIR}/{filename}"
+                img.save(output_path, "WEBP", quality=75, method=6, optimize=True)
                 
-                img.save(output_path, "WEBP", quality=80)
                 print(f"      📸 HQ Image Saved: {filename}")
                 return f"/images/{filename}" 
 
         except Exception as e:
-            time.sleep(2)
+            time.sleep(5)
     
-    # --- FALLBACK LOGIC (DIPERBAIKI) ---
-    # Jika AI Gagal, kita DOWNLOAD gambar dari daftar Fallback dan SIMPAN LOKAL
-    print("      ⚠️ AI Image Failed. Downloading Fallback Image...")
-    
-    try:
-        # Pilih satu URL dari daftar fallback
-        fallback_url = random.choice(FALLBACK_IMAGES)
-        
-        # Download gambar fallback
-        response = requests.get(fallback_url, timeout=30)
-        if response.status_code == 200:
-            img = Image.open(BytesIO(response.content)).convert("RGB")
-            img = img.resize((1200, 675), Image.Resampling.LANCZOS)
-            
-            # Simpan sebagai file lokal (sama seperti gambar AI)
-            img.save(output_path, "WEBP", quality=80)
-            print(f"      📸 Fallback Image Saved: {filename}")
-            return f"/images/{filename}"
-    except Exception as e:
-        print(f"      ❌ Fallback Download Error: {e}")
-
-    # Jika Fallback pun gagal download, terpaksa return URL string (Opsi Terakhir)
-    return fallback_url
+    print("      ❌ Image failed after 3 attempts. Using Fallback.")
+    return random.choice(FALLBACK_IMAGES)
 
 # --- INDEXING ENGINE ---
+def submit_to_google(url):
+    if not GOOGLE_JSON_KEY: return
+    try:
+        creds_dict = json.loads(GOOGLE_JSON_KEY)
+        SCOPES = ["https://www.googleapis.com/auth/indexing"]
+        credentials = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPES)
+        service = build("indexing", "v3", credentials=credentials)
+        body = {"url": url, "type": "URL_UPDATED"}
+        service.urlNotifications().publish(body=body).execute()
+        print(f"      🚀 Google Indexing Submitted")
+    except Exception as e:
+        if "FutureWarning" not in str(e): print(f"      ⚠️ Google Indexing Error: {e}")
+
 def submit_to_indexnow(url):
     try:
         endpoint = "https://api.indexnow.org/indexnow"
@@ -184,57 +184,74 @@ def submit_to_indexnow(url):
             "keyLocation": f"https://{host}/{INDEXNOW_KEY}.txt",
             "urlList": [url]
         }
-        requests.post(endpoint, json=data, headers={'Content-Type': 'application/json; charset=utf-8'}, timeout=5)
+        requests.post(endpoint, json=data, headers={'Content-Type': 'application/json; charset=utf-8'})
         print(f"      🚀 IndexNow Submitted")
     except: pass
 
-def submit_to_google(url):
-    if not GOOGLE_JSON_KEY: return
+# --- AI WRITER ENGINE (UPDATED: UNIQUE HEADERS) ---
+def parse_ai_response(text, fallback_title, fallback_desc):
     try:
-        from oauth2client.service_account import ServiceAccountCredentials
-        from googleapiclient.discovery import build
-        
-        creds_dict = json.loads(GOOGLE_JSON_KEY)
-        SCOPES = ["https://www.googleapis.com/auth/indexing"]
-        credentials = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPES)
-        service = build("indexing", "v3", credentials=credentials)
-        body = {"url": url, "type": "URL_UPDATED"}
-        service.urlNotifications().publish(body=body).execute()
-        print(f"      🚀 Google Indexing Submitted")
-    except Exception as e:
-        pass
+        parts = text.split("|||BODY_START|||")
+        if len(parts) >= 2:
+            json_part = re.sub(r'```json\s*|```', '', parts[0].strip())
+            data = json.loads(json_part)
+            data['title'] = clean_text(data.get('title', fallback_title))
+            data['description'] = clean_text(data.get('description', fallback_desc))
+            data['image_alt'] = clean_text(data.get('image_alt', data['title']))
+            data['content'] = parts[1].strip()
+            return data
+    except Exception: pass
+    
+    clean_body = re.sub(r'\{.*\}', '', text, flags=re.DOTALL).replace("|||BODY_START|||", "").strip()
+    return {
+        "title": clean_text(fallback_title),
+        "description": clean_text(fallback_desc),
+        "image_alt": clean_text(fallback_title),
+        "category": "International", 
+        "main_keyword": "Football",
+        "lsi_keywords": [],
+        "content": clean_body
+    }
 
-# --- AI WRITER ENGINE ---
 def get_groq_article_seo(title, summary, link, internal_links_block, author_name):
     valid_cats_str = ", ".join(VALID_CATEGORIES)
     
+    # --- 🟢 PERBAIKAN PROMPT UNTUK HEADER UNIK ---
     system_prompt = f"""
-    You are {author_name} for 'football Daily'.
+    You are {author_name} for 'Sport Daily'.
     
     TASK: Write a 1000+ word viral article based on the news.
     
-    # CRITICAL INSTRUCTION FOR HEADERS:
-    - **NEVER** use generic headers like "Analysis", "Conclusion".
-    - **ALWAYS** write unique, catchy headers.
-    
-    # CRITICAL INSTRUCTION FOR ADS:
-    - You MUST insert the exact code `{{< ad >}}` exactly TWICE in the article body.
-    - Once after the introduction.
-    - Once before the conclusion.
+    # CRITICAL INSTRUCTION FOR HEADERS (H2/H3):
+    - **NEVER** use generic headers like "Analysis", "Deep Dive", "Conclusion", "Summary", "Introduction".
+    - **ALWAYS** write unique, catchy headers that include specific Player Names, Team Names, or Action Verbs.
+    - Example BAD: "## Tactical Analysis"
+    - Example GOOD: "## How Mbappe's Speed Dismantled the Defense"
     
     # CRITICAL INSTRUCTION FOR CATEGORY:
     You must classify this news into EXACTLY ONE of these categories: [{valid_cats_str}].
+    - If it's about NFL, NBA, or non-football sports, use "International".
+    - If it's about player movement/contracts, use "Transfer News".
     
-    OUTPUT FORMAT (Strict JSON):
+    OUTPUT FORMAT (JSON):
     {{
         "title": "Headline (No Markdown)",
-        "description": "Meta description (No quotes)",
+        "description": "Meta description",
         "category": "CHOOSE_FROM_LIST_ABOVE",
         "main_keyword": "Entity Name",
         "lsi_keywords": ["keyword1"],
-        "image_alt": "Descriptive text for image",
-        "content": "Markdown content here including {{< ad >}}"
+        "image_alt": "Descriptive text for image"
     }}
+    |||BODY_START|||
+    [Markdown Content]
+
+    # STRUCTURE:
+    1. Executive Summary.
+    2. [Unique H2: Context of the Story].
+    3. [Unique H2: Key Stats/Data Table] (Markdown Table).
+    4. **Read More** (Paste Block Below).
+    5. [Unique H2: Quotes & Reactions].
+    6. FAQ (Questions must be specific to the topic).
 
     # INTERNAL LINKS BLOCK:
     ### Read More
@@ -253,19 +270,12 @@ def get_groq_article_seo(title, summary, link, internal_links_block, author_name
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.8,
+                temperature=0.8, # Sedikit dinaikkan agar lebih kreatif judulnya
                 max_tokens=7500,
-                response_format={"type": "json_object"} 
             )
             return completion.choices[0].message.content
         except RateLimitError: continue
-        except BadRequestError as e:
-            if "organization_restricted" in str(e):
-                print(f"      ⚠️ Critical: API Key Rejected (Organization Restricted).")
-            continue
-        except Exception as e: 
-            print(f"      ⚠️ Error: {e}")
-            continue
+        except Exception as e: print(f"      ⚠️ Error: {e}"); continue
             
     return None
 
@@ -279,10 +289,7 @@ def main():
 
     for source_name, rss_url in RSS_SOURCES.items():
         print(f"\n📡 Fetching Source: {source_name}...")
-        try:
-            feed = feedparser.parse(rss_url)
-        except: continue
-        
+        feed = fetch_rss_feed(rss_url)
         if not feed or not feed.entries: continue
 
         cat_success_count = 0
@@ -300,63 +307,47 @@ def main():
             
             links_block = get_formatted_internal_links()
             
-            # Generate Text
             raw_response = get_groq_article_seo(clean_title, entry.summary, entry.link, links_block, current_author)
             
-            if not raw_response:
-                print("      ❌ Failed to get AI response. Skipping.")
-                continue
+            if not raw_response: continue
 
-            try:
-                data = json.loads(raw_response)
-            except:
-                print("      ❌ JSON Parsing Failed. Skipping.")
-                continue
+            data = parse_ai_response(raw_response, clean_title, entry.summary)
+            if not data: continue
 
-            # Validasi Kategori
-            if data.get('category') not in VALID_CATEGORIES:
+            if data['category'] not in VALID_CATEGORIES:
                 data['category'] = "International"
 
-            # Image Gen (AI or Downloaded Fallback)
             img_name = f"{slug}.webp"
             keyword_for_image = data.get('main_keyword') or clean_title
             final_img = download_and_optimize_image(keyword_for_image, img_name)
-            
-            # Data Cleaning
-            title = clean_text_for_yaml(data.get('title', clean_title))
-            desc = clean_text_for_yaml(data.get('description', entry.summary))
-            alt_text = clean_text_for_yaml(data.get('image_alt', clean_title))
-            
-            # Fix Shortcodes
-            content_cleaned = repair_shortcodes(data.get('content', ''))
             
             date = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+00:00")
             tags_list = data.get('lsi_keywords', [])
             if data.get('main_keyword'): tags_list.append(data['main_keyword'])
             tags_str = json.dumps(tags_list)
+            img_alt = data.get('image_alt', clean_title).replace('"', "'")
             
             md = f"""---
-title: "{title}"
+title: "{data['title']}"
 date: {date}
-lastmod: {date}
 author: "{current_author}"
 categories: ["{data['category']}"]
 tags: {tags_str}
 featured_image: "{final_img}"
-featured_image_alt: "{alt_text}"
-description: "{desc}"
+featured_image_alt: "{img_alt}"
+description: "{data['description']}"
 slug: "{slug}"
 url: "/{slug}/"
 draft: false
 ---
 
-{content_cleaned}
+{data['content']}
 
 ---
 *Source: Analysis by {current_author} based on international reports and [Original Story]({entry.link}).*
 """
             with open(f"{CONTENT_DIR}/{filename}", "w", encoding="utf-8") as f: f.write(md)
-            if 'title' in data: save_link_to_memory(title, slug)
+            if 'title' in data: save_link_to_memory(data['title'], slug)
             
             print(f"   ✅ Published: {filename} (Category: {data['category']})")
             
