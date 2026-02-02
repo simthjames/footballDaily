@@ -193,7 +193,7 @@ def get_groq_article_seo(title, summary, link, internal_links_block, author_name
     - **ALWAYS** write unique, catchy headers.
     
     # CRITICAL INSTRUCTION FOR ADS:
-    - You MUST insert the exact code `{{{< ad >}}}` exactly TWICE in the article body.
+    - You MUST insert the exact code `{{< ad >}}` exactly TWICE in the article body.
     - Once after the introduction.
     - Once before the conclusion.
     
