@@ -8,21 +8,17 @@
     <!-- =======================================================
          1. PERFORMANCE & PRECONNECT (CRITICAL FOR LCP SCORE)
          ======================================================= -->
-    <!-- Preconnect ke CDN Aset -->
     <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    
-    <!-- Preconnect ke CDN Gambar (PENTING untuk LCP) -->
     <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
     <link rel="dns-prefetch" href="https://images.unsplash.com">
     <link rel="preconnect" href="https://image.pollinations.ai" crossorigin>
     <link rel="dns-prefetch" href="https://image.pollinations.ai">
 
     <!-- =======================================================
-         2. TAILWIND CONFIG (MUST BE BEFORE SCRIPT LOAD)
+         2. TAILWIND CONFIG
          ======================================================= -->
-    <!-- Definisi Config DULUAN agar tidak render blocking/flash -->
     <script>
         tailwind = {
             config: {
@@ -41,21 +37,16 @@
             }
         }
     </script>
-    <!-- Load Tailwind Script -->
     <script src="https://cdn.tailwindcss.com?plugins=typography,line-clamp"></script>
 
     <!-- =======================================================
-         3. FONT LOADING (NON-BLOCKING STRATEGY)
+         3. FONT LOADING
          ======================================================= -->
-    <!-- Preload Font sebagai style, lalu ubah jadi stylesheet saat load selesai -->
     <link rel="preload" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@300;400;500;700;900&family=Roboto:wght@300;400;500;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <!-- Fallback untuk browser tanpa JS -->
     <noscript><link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@300;400;500;700;900&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet"></noscript>
     
     <style>
-        /* CSS Kritis: Pastikan teks muncul walau font belum load (Swap) */
         body { font-display: swap; }
-        /* Optimasi rendering gambar */
         img { content-visibility: auto; }
     </style>
 
@@ -70,7 +61,7 @@
     <meta name="theme-color" content="#ffffff">
 
     <!-- =======================================================
-         5. SOCIAL MEDIA (OPEN GRAPH & TWITTER)
+         5. SOCIAL MEDIA
          ======================================================= -->
     <meta property="og:locale" content="{{ .Site.LanguageCode | default "en_US" }}">
     <meta property="og:site_name" content="{{ .Site.Title }}">
@@ -97,7 +88,7 @@
     {{ end }}
 
     <!-- =======================================================
-         6. SCHEMA.ORG (JSON-LD)
+         6. SCHEMA.ORG (JSON-LD) - FIX APPLIED HERE
          ======================================================= -->
     
     <!-- A. Homepage Schema -->
@@ -106,13 +97,13 @@
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
-      "name": "{{ .Site.Title }}",
-      "alternateName": ["{{ .Site.Title }} News", "Pop Culture Daily"],
+      "name": {{ .Site.Title | jsonify }},
+      "alternateName": [{{ printf "%s News" .Site.Title | jsonify }}, "Pop Culture Daily"],
       "url": "{{ .Site.BaseURL }}",
-      "description": "{{ .Site.Params.description }}",
+      "description": {{ .Site.Params.description | plainify | jsonify }},
       "publisher": {
         "@type": "Organization",
-        "name": "{{ .Site.Title }}",
+        "name": {{ .Site.Title | jsonify }},
         "logo": {
           "@type": "ImageObject",
           "url": "{{ "favicon.svg" | absURL }}"
@@ -132,23 +123,23 @@
         "@type": "WebPage",
         "@id": "{{ .Permalink }}"
       },
-      "headline": "{{ .Title }}",
+      "headline": {{ .Title | jsonify }},
       "image": [ "{{ .Params.featured_image | absURL }}" ],
       "datePublished": "{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}",
       "dateModified": "{{ .Lastmod.Format "2006-01-02T15:04:05Z07:00" }}",
       "author": {
         "@type": "Person",
-        "name": "{{ .Params.author | default "Editorial Team" }}"
+        "name": {{ .Params.author | default "Editorial Team" | jsonify }}
       },
       "publisher": {
         "@type": "Organization",
-        "name": "{{ .Site.Title }}",
+        "name": {{ .Site.Title | jsonify }},
         "logo": {
           "@type": "ImageObject",
           "url": "{{ "favicon.svg" | absURL }}" 
         }
       },
-      "description": "{{ .Params.description | default .Summary | plainify | htmlUnescape }}"
+      "description": {{ .Params.description | default .Summary | plainify | jsonify }}
     }
     </script>
     {{ end }}
