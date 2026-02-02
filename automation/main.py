@@ -13,7 +13,7 @@ from PIL import Image, ImageEnhance, ImageOps
 from groq import Groq, APIError, RateLimitError, BadRequestError
 
 # --- SUPPRESS WARNINGS ---
-warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore")
 
 # --- CONFIGURATION ---
 GROQ_KEYS_RAW = os.environ.get("GROQ_API_KEY", "")
@@ -25,7 +25,6 @@ GOOGLE_JSON_KEY = os.environ.get("GOOGLE_INDEXING_KEY", "")
 
 if not GROQ_API_KEYS:
     print("❌ FATAL ERROR: Groq API Key is missing!")
-    # Jangan exit, biarkan error handling yang menangani nanti
 
 AUTHOR_PROFILES = [
     "Dave Harsya (Senior Analyst)", "Sarah Jenkins (Chief Editor)",
@@ -49,8 +48,15 @@ RSS_SOURCES = {
 }
 
 FALLBACK_IMAGES = [
+    "https://images.unsplash.com/photo-1522778119026-d647f0565c6a?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=1200&q=80",
     "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1200&q=80",
-    "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?auto=format&fit=crop&w=1200&q=80"
+    "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1624880357913-a8539238245b?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1560272564-c83b66b1ad12?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?auto=format&fit=crop&w=1200&q=80"
 ]
 
 CONTENT_DIR = "content/articles"
@@ -95,7 +101,22 @@ def clean_text_for_yaml(text):
     text = text.replace('\\', '')
     return re.sub(r'\s+', ' ', text).strip()
 
-# --- IMAGE ENGINE (DIKEMBALIKAN SESUAI KODE ASLI ANDA) ---
+def repair_shortcodes(text):
+    """
+    FUNGSI BARU: Memperbaiki format shortcode iklan yang sering salah ditulis AI.
+    Ini menjamin iklan muncul walau AI salah ketik.
+    """
+    if not text: return ""
+    # Ganti variasi salah menjadi format Hugo yang benar: {{< ad >}}
+    text = text.replace("{< ad >}", "{{< ad >}}")
+    text = text.replace("{ < ad > }", "{{< ad >}}")
+    text = text.replace("{{ ad }}", "{{< ad >}}")
+    text = text.replace("{{ad}}", "{{< ad >}}")
+    # Hapus duplikat jika AI menulis double
+    text = text.replace("{{< ad >}}{{< ad >}}", "{{< ad >}}")
+    return text
+
+# --- IMAGE ENGINE (KEMBALI KE KODE ASLI ANDA) ---
 def download_and_optimize_image(query, filename):
     if not filename.endswith(".webp"):
         filename = filename.rsplit(".", 1)[0] + ".webp"
@@ -116,7 +137,8 @@ def download_and_optimize_image(query, filename):
         image_url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=1280&height=720&nologo=true&model=flux-realism&seed={seed}&enhance=true"
         
         try:
-            response = requests.get(image_url, timeout=120)
+            # Saya tambah timeout sedikit agar tidak gampang gagal load image
+            response = requests.get(image_url, timeout=60)
             if response.status_code == 200:
                 if "image" not in response.headers.get("content-type", ""):
                     time.sleep(2); continue
@@ -160,7 +182,6 @@ def submit_to_indexnow(url):
     except: pass
 
 def submit_to_google(url):
-    # Import di dalam fungsi untuk menghindari error jika library tidak ada
     try:
         from oauth2client.service_account import ServiceAccountCredentials
         from googleapiclient.discovery import build
@@ -176,19 +197,16 @@ def submit_to_google(url):
     except Exception as e:
         pass
 
-# --- AI WRITER ENGINE (DIPERBAIKI UNTUK JSON DAN IKLAN) ---
+# --- AI WRITER ENGINE ---
 def get_groq_article_seo(title, summary, link, internal_links_block, author_name):
     valid_cats_str = ", ".join(VALID_CATEGORIES)
     
-    # Prompt diperbaiki agar:
-    # 1. Output JSON valid (mengatasi error parsing).
-    # 2. Menyisipkan {{< ad >}} secara otomatis.
     system_prompt = f"""
     You are {author_name} for 'football Daily'.
     
     TASK: Write a 1000+ word viral article based on the news.
     
-    # CRITICAL INSTRUCTION FOR HEADERS (H2/H3):
+    # CRITICAL INSTRUCTION FOR HEADERS:
     - **NEVER** use generic headers like "Analysis", "Conclusion".
     - **ALWAYS** write unique, catchy headers.
     
@@ -230,7 +248,7 @@ def get_groq_article_seo(title, summary, link, internal_links_block, author_name
                 ],
                 temperature=0.8,
                 max_tokens=7500,
-                response_format={"type": "json_object"} # FORCE JSON OBJECT
+                response_format={"type": "json_object"} 
             )
             return completion.choices[0].message.content
         except RateLimitError: continue
@@ -278,7 +296,7 @@ def main():
             raw_response = get_groq_article_seo(clean_title, entry.summary, entry.link, links_block, current_author)
             
             if not raw_response:
-                print("      ❌ Failed to get AI response (Check API Key). Skipping.")
+                print("      ❌ Failed to get AI response. Skipping.")
                 continue
 
             try:
@@ -291,15 +309,18 @@ def main():
             if data.get('category') not in VALID_CATEGORIES:
                 data['category'] = "International"
 
-            # Image Gen (Menggunakan Fungsi Asli Anda)
+            # Image Gen (Logic Asli)
             img_name = f"{slug}.webp"
             keyword_for_image = data.get('main_keyword') or clean_title
             final_img = download_and_optimize_image(keyword_for_image, img_name)
             
-            # Data Cleaning untuk YAML
+            # Data Cleaning
             title = clean_text_for_yaml(data.get('title', clean_title))
             desc = clean_text_for_yaml(data.get('description', entry.summary))
             alt_text = clean_text_for_yaml(data.get('image_alt', clean_title))
+            
+            # FIX SHORTCODES DI SINI (PEMBELAJARAN DARI KESALAHAN)
+            content_cleaned = repair_shortcodes(data.get('content', ''))
             
             date = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+00:00")
             tags_list = data.get('lsi_keywords', [])
@@ -321,7 +342,7 @@ url: "/{slug}/"
 draft: false
 ---
 
-{data.get('content', '')}
+{content_cleaned}
 
 ---
 *Source: Analysis by {current_author} based on international reports and [Original Story]({entry.link}).*
