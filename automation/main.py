@@ -29,7 +29,7 @@ if not GROQ_API_KEYS:
 AUTHOR_PROFILES = [
     "Dave Harsya (Senior Analyst)", "Sarah Jenkins (Chief Editor)",
     "Luca Romano (Transfer Specialist)", "Marcus Reynolds (Premier League Correspondent)",
-    "Elena Petrova (Tactical Expert)", "Ben Foster (footballs Journalist)",
+    "Elena Petrova (Tactical Expert)", "Ben Foster (Football Journalist)",
     "Mateo Rodriguez (European Football Analyst)"
 ]
 
@@ -47,6 +47,7 @@ RSS_SOURCES = {
     "UK Source": "https://news.google.com/rss/search?q=Sports+News&hl=en-GB&gl=GB&ceid=GB:en"
 }
 
+# DAFTAR GAMBAR CADANGAN (UNSPLASH)
 FALLBACK_IMAGES = [
     "https://images.unsplash.com/photo-1522778119026-d647f0565c6a?auto=format&fit=crop&w=1200&q=80",
     "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?auto=format&fit=crop&w=1200&q=80",
@@ -93,78 +94,84 @@ def get_formatted_internal_links():
     return "\n".join(formatted_links)
 
 def clean_text_for_yaml(text):
-    """Membersihkan teks agar aman masuk ke YAML Frontmatter"""
     if not text: return ""
     text = str(text)
-    text = text.replace('"', "'") # Ubah double quote jadi single
+    text = text.replace('"', "'") 
     text = text.replace('\n', ' ') 
     text = text.replace('\\', '')
     return re.sub(r'\s+', ' ', text).strip()
 
 def repair_shortcodes(text):
-    """
-    FUNGSI BARU: Memperbaiki format shortcode iklan yang sering salah ditulis AI.
-    Ini menjamin iklan muncul walau AI salah ketik.
-    """
     if not text: return ""
-    # Ganti variasi salah menjadi format Hugo yang benar: {{< ad >}}
     text = text.replace("{< ad >}", "{{< ad >}}")
     text = text.replace("{ < ad > }", "{{< ad >}}")
     text = text.replace("{{ ad }}", "{{< ad >}}")
     text = text.replace("{{ad}}", "{{< ad >}}")
-    # Hapus duplikat jika AI menulis double
     text = text.replace("{{< ad >}}{{< ad >}}", "{{< ad >}}")
     return text
 
-# --- IMAGE ENGINE (KEMBALI KE KODE ASLI ANDA) ---
+# --- IMAGE ENGINE (UPDATED: DOWNLOAD FALLBACK) ---
 def download_and_optimize_image(query, filename):
     if not filename.endswith(".webp"):
         filename = filename.rsplit(".", 1)[0] + ".webp"
     
-    # Cek exist
-    if os.path.exists(f"{IMAGE_DIR}/{filename}"):
+    # Path output lokal
+    output_path = f"{IMAGE_DIR}/{filename}"
+    
+    # Cek jika file sudah ada di folder
+    if os.path.exists(output_path):
         return f"/images/{filename}"
 
-    # Prompt sesuai kode awal Anda
-    base_prompt = f"{query} footballs action photography, stadium atmosphere, 8k resolution, highly detailed, photorealistic, cinematic lighting, sharp focus"
+    # Prompt AI
+    base_prompt = f"{query} football match action, stadium atmosphere, 8k resolution, cinematic lighting"
     safe_prompt = base_prompt.replace(" ", "%20")[:250]
     
     print(f"      🎨 Generating HQ Image: {base_prompt[:40]}...")
 
-    for attempt in range(3):
+    # COBA GENERATE GAMBAR AI (2x Attempt saja biar cepat)
+    for attempt in range(2):
         seed = random.randint(1, 999999)
-        # URL sesuai kode awal Anda
         image_url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=1280&height=720&nologo=true&model=flux-realism&seed={seed}&enhance=true"
         
         try:
-            # Saya tambah timeout sedikit agar tidak gampang gagal load image
-            response = requests.get(image_url, timeout=60)
-            if response.status_code == 200:
-                if "image" not in response.headers.get("content-type", ""):
-                    time.sleep(2); continue
-
+            response = requests.get(image_url, timeout=45)
+            if response.status_code == 200 and "image" in response.headers.get("content-type", ""):
                 img = Image.open(BytesIO(response.content)).convert("RGB")
-                # Resize sesuai kode awal Anda
                 img = img.resize((1200, 675), Image.Resampling.LANCZOS)
                 
-                # Enhance sesuai kode awal Anda
-                enhancer_sharp = ImageEnhance.Sharpness(img)
-                img = enhancer_sharp.enhance(1.3)
-                enhancer_color = ImageEnhance.Color(img)
-                img = enhancer_color.enhance(1.1)
-
-                output_path = f"{IMAGE_DIR}/{filename}"
-                # Save params sesuai kode awal Anda
-                img.save(output_path, "WEBP", quality=75, method=6, optimize=True)
+                # Enhance
+                img = ImageEnhance.Sharpness(img).enhance(1.2)
                 
+                img.save(output_path, "WEBP", quality=80)
                 print(f"      📸 HQ Image Saved: {filename}")
                 return f"/images/{filename}" 
 
         except Exception as e:
-            time.sleep(5)
+            time.sleep(2)
     
-    print("      ❌ Image failed after 3 attempts. Using Fallback.")
-    return random.choice(FALLBACK_IMAGES)
+    # --- FALLBACK LOGIC (DIPERBAIKI) ---
+    # Jika AI Gagal, kita DOWNLOAD gambar dari daftar Fallback dan SIMPAN LOKAL
+    print("      ⚠️ AI Image Failed. Downloading Fallback Image...")
+    
+    try:
+        # Pilih satu URL dari daftar fallback
+        fallback_url = random.choice(FALLBACK_IMAGES)
+        
+        # Download gambar fallback
+        response = requests.get(fallback_url, timeout=30)
+        if response.status_code == 200:
+            img = Image.open(BytesIO(response.content)).convert("RGB")
+            img = img.resize((1200, 675), Image.Resampling.LANCZOS)
+            
+            # Simpan sebagai file lokal (sama seperti gambar AI)
+            img.save(output_path, "WEBP", quality=80)
+            print(f"      📸 Fallback Image Saved: {filename}")
+            return f"/images/{filename}"
+    except Exception as e:
+        print(f"      ❌ Fallback Download Error: {e}")
+
+    # Jika Fallback pun gagal download, terpaksa return URL string (Opsi Terakhir)
+    return fallback_url
 
 # --- INDEXING ENGINE ---
 def submit_to_indexnow(url):
@@ -177,16 +184,16 @@ def submit_to_indexnow(url):
             "keyLocation": f"https://{host}/{INDEXNOW_KEY}.txt",
             "urlList": [url]
         }
-        requests.post(endpoint, json=data, headers={'Content-Type': 'application/json; charset=utf-8'})
+        requests.post(endpoint, json=data, headers={'Content-Type': 'application/json; charset=utf-8'}, timeout=5)
         print(f"      🚀 IndexNow Submitted")
     except: pass
 
 def submit_to_google(url):
+    if not GOOGLE_JSON_KEY: return
     try:
         from oauth2client.service_account import ServiceAccountCredentials
         from googleapiclient.discovery import build
         
-        if not GOOGLE_JSON_KEY: return
         creds_dict = json.loads(GOOGLE_JSON_KEY)
         SCOPES = ["https://www.googleapis.com/auth/indexing"]
         credentials = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPES)
@@ -293,6 +300,7 @@ def main():
             
             links_block = get_formatted_internal_links()
             
+            # Generate Text
             raw_response = get_groq_article_seo(clean_title, entry.summary, entry.link, links_block, current_author)
             
             if not raw_response:
@@ -309,7 +317,7 @@ def main():
             if data.get('category') not in VALID_CATEGORIES:
                 data['category'] = "International"
 
-            # Image Gen (Logic Asli)
+            # Image Gen (AI or Downloaded Fallback)
             img_name = f"{slug}.webp"
             keyword_for_image = data.get('main_keyword') or clean_title
             final_img = download_and_optimize_image(keyword_for_image, img_name)
@@ -319,7 +327,7 @@ def main():
             desc = clean_text_for_yaml(data.get('description', entry.summary))
             alt_text = clean_text_for_yaml(data.get('image_alt', clean_title))
             
-            # FIX SHORTCODES DI SINI (PEMBELAJARAN DARI KESALAHAN)
+            # Fix Shortcodes
             content_cleaned = repair_shortcodes(data.get('content', ''))
             
             date = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+00:00")
